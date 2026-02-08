@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Valentine 💖</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #ffb6c1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .screen {
+      width: 100%;
+      height: 100%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .screen.active { display: flex; }
+
+    h1 {
+      font-size: 48px;
+      margin: 0 20px 36px;
+      color: #7a1f3d;
+      text-align: center;
+    }
+
+    #stage {
+      position: relative;
+      width: min(900px, 90vw);
+      height: 320px;
+    }
+
+    .btn {
+      position: absolute;
+      padding: 16px 30px;
+      border-radius: 999px;
+      border: none;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 10px 25px rgba(0,0,0,.2);
+      transition: transform 120ms ease-out;
+    }
+
+    #yes {
+      background: #2ecc71;
+      color: #0b2a16;
+      left: 28%;
+      top: 130px;
+    }
+
+    #no {
+      background: #ff5c5c;
+      color: #3b0b0b;
+      left: 62%;
+      top: 130px;
+    }
+
+    .final h1 { font-size: 56px; }
+  </style>
+</head>
+
+<body>
+
+  <div id="screen1" class="screen active">
+    <h1>tu veux être ma valentine ?</h1>
+    <div id="stage">
+      <button id="yes" class="btn">oui</button>
+      <button id="no" class="btn">non</button>
+    </div>
+  </div>
+
+  <div id="screen2" class="screen final">
+    <h1>💖💖💖</h1>
+    <h1>je savais que tu dirais oui</h1>
+  </div>
+
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const stage   = document.getElementById("stage");
+    const btnYes  = document.getElementById("yes");
+    const btnNo   = document.getElementById("no");
+    const screen1 = document.getElementById("screen1");
+    const screen2 = document.getElementById("screen2");
+
+    // Sécurité: si tu vois ça, c'est que tu n'as pas collé le bon HTML
+    const missing = [];
+    if (!stage) missing.push("#stage");
+    if (!btnYes) missing.push("#yes");
+    if (!btnNo) missing.push("#no");
+    if (!screen1) missing.push("#screen1");
+    if (!screen2) missing.push("#screen2");
+    if (missing.length) {
+      console.error("Éléments introuvables :", missing.join(", "));
+      return;
+    }
+
+    // Oui
+    const YES_GROW_STEP = 0.09;
+    const YES_MAX_SCALE = 2;
+
+    // Non (impossible à choper)
+    const SAFE_DISTANCE = 340;
+    const EDGE_PADDING  = 16;
+    const TRIES         = 180;
+    const COOLDOWN_MS   = 15;
+
+    let yesScale = 1;
+    let lastTp = 0;
+
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const rand  = (min, max) => min + Math.random() * (max - min);
+    const dist  = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+
+    function stageRect() { return stage.getBoundingClientRect(); }
+
+    function setPos(el, x, y) {
+      el.style.left = `${x}px`;
+      el.style.top  = `${y}px`;
+    }
+
+    function initPositionsToPx() {
+      const s = stageRect();
+      [btnYes, btnNo].forEach(el => {
+        const r = el.getBoundingClientRect();
+        setPos(el, r.left - s.left, r.top - s.top);
+      });
+    }
+
+    function mouseInStage(e) {
+      const s = stageRect();
+      return { x: e.clientX - s.left, y: e.clientY - s.top };
+    }
+
+    function noSize() {
+      const r = btnNo.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    }
+
+    function noCenter() {
+      const s = stageRect();
+      const r = btnNo.getBoundingClientRect();
+      return {
+        x: (r.left - s.left) + r.width / 2,
+        y: (r.top  - s.top ) + r.height / 2
+      };
+    }
+
+    function trollFlash() {
+      const rot = rand(-20, 20);
+      const tx  = rand(-16, 16);
+      const ty  = rand(-12, 12);
+      const sc  = rand(0.92, 1.15);
+      btnNo.style.transition = "transform 70ms ease-out";
+      btnNo.style.transform = `translate(${tx}px, ${ty}px) rotate(${rot}deg) scale(${sc})`;
+      setTimeout(() => {
+        btnNo.style.transition = "transform 120ms ease-out";
+        btnNo.style.transform = "translate(0px,0px) rotate(0deg) scale(1)";
+      }, 90);
+    }
+
+    function findFarPosition(mx, my) {
+      const s = stageRect();
+      const { w, h } = noSize();
+
+      const minX = EDGE_PADDING;
+      const minY = EDGE_PADDING;
+      const maxX = s.width  - w - EDGE_PADDING;
+      const maxY = s.height - h - EDGE_PADDING;
+
+      if (maxX <= minX || maxY <= minY) return { x: 0, y: 0 };
+
+      let best = { x: rand(minX, maxX), y: rand(minY, maxY), d: -1 };
+
+      for (let i = 0; i < TRIES; i++) {
+        const x = rand(minX, maxX);
+        const y = rand(minY, maxY);
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const d0 = dist(mx, my, cx, cy);
+
+        if (d0 >= SAFE_DISTANCE) return { x, y };
+        if (d0 > best.d) best = { x, y, d: d0 };
+      }
+      return { x: best.x, y: best.y };
+    }
+
+    function teleportNo(mx, my, force = false) {
+      const t = performance.now();
+      if (!force && (t - lastTp) < COOLDOWN_MS) return;
+      lastTp = t;
+
+      const p = findFarPosition(mx, my);
+      setPos(btnNo, p.x, p.y);
+      trollFlash();
+    }
+
+    function onMove(e) {
+      yesScale = Math.min(YES_MAX_SCALE, yesScale + YES_GROW_STEP);
+      btnYes.style.transform = `scale(${yesScale})`;
+
+      const m = mouseInStage(e);
+      const c = noCenter();
+
+      // Panique: si tu approches, il téléporte instant
+      if (dist(m.x, m.y, c.x, c.y) < SAFE_DISTANCE) {
+        teleportNo(m.x, m.y);
+      } else if (Math.random() < 0.06) {
+        // Troll aléatoire même quand tu es "loin"
+        teleportNo(m.x, m.y);
+      }
+    }
+
+    stage.addEventListener("mousemove", onMove);
+    stage.addEventListener("pointermove", onMove, { passive: true });
+
+    btnNo.addEventListener("mouseenter", (e) => {
+      const m = mouseInStage(e);
+      teleportNo(m.x, m.y, true);
+    });
+
+    btnNo.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const m = mouseInStage(e);
+      teleportNo(m.x, m.y, true);
+    });
+
+    btnNo.addEventListener("focus", () => btnNo.blur());
+
+    btnYes.addEventListener("click", () => {
+      screen1.classList.remove("active");
+      screen2.classList.add("active");
+    });
+
+    initPositionsToPx();
+    window.addEventListener("resize", initPositionsToPx);
+  });
+  </script>
+
+</body>
+</html>
